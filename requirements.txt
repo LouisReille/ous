@@ -1,0 +1,2 @@
+pyxel>=1.9.0
+python-vlc>=3.0.0
