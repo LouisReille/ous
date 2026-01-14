@@ -63,22 +63,14 @@ class App:
         self.paused = False
 
         pyxel.init(SCREEN_WIDTH, SCREEN_HEIGHT, title="Pyxel Raycaster")
-        pyxel.mouse(True)
-
-        # store mousex for rotation
-        self.last_mouse_x = pyxel.mouse_x
+        pyxel.mouse(False)  # Show cursor for menu interactions
 
         pyxel.run(self.update, self.draw)
 
     def update(self):
-        # Handle pause toggle with ESC
+        # Handle pause toggle with ESC - ESC only pauses/unpauses, never closes the window
         if pyxel.btnp(pyxel.KEY_ESCAPE):
             self.paused = not self.paused
-            if self.paused:
-                pyxel.mouse(False)  # Release mouse to allow it to leave window
-            else:
-                pyxel.mouse(True)  # Capture mouse again
-                self.last_mouse_x = pyxel.mouse_x  # Reset mouse tracking
 
         # If paused, only handle menu interactions
         if self.paused:
@@ -98,60 +90,36 @@ class App:
 
         moveSpeed = 0.2
         botSpeed = 0.1
-        sensitivity = 0.003  # mouse sensitivity
+        rotSpeed = 0.05  # rotation speed for keyboard controls
 
-        # player movement forward/backward
-        if pyxel.btn(pyxel.KEY_UP):
+        # player movement forward/backward (UP arrow or W key)
+        if pyxel.btn(pyxel.KEY_UP) or pyxel.btn(pyxel.KEY_W):
             if worldMap[int(self.posX + self.dirX * moveSpeed)][int(self.posY)] == 0:
                 self.posX += self.dirX * moveSpeed
             if worldMap[int(self.posX)][int(self.posY + self.dirY * moveSpeed)] == 0:
                 self.posY += self.dirY * moveSpeed
 
-        if pyxel.btn(pyxel.KEY_DOWN):
+        # player movement backward (DOWN arrow or S key)
+        if pyxel.btn(pyxel.KEY_DOWN) or pyxel.btn(pyxel.KEY_S):
             if worldMap[int(self.posX - self.dirX * moveSpeed)][int(self.posY)] == 0:
                 self.posX -= self.dirX * moveSpeed
             if worldMap[int(self.posX)][int(self.posY - self.dirY * moveSpeed)] == 0:
                 self.posY -= self.dirY * moveSpeed
 
-        # strafe left/right (crab movement)
-        if pyxel.btn(pyxel.KEY_LEFT):
-            # Move perpendicular to direction (use plane vector for strafe)
-            if worldMap[int(self.posX - self.planeX * moveSpeed)][int(self.posY)] == 0:
-                self.posX -= self.planeX * moveSpeed
-            if worldMap[int(self.posX)][int(self.posY - self.planeY * moveSpeed)] == 0:
-                self.posY -= self.planeY * moveSpeed
+        # rotate left (LEFT arrow or A key)
+        if pyxel.btn(pyxel.KEY_LEFT) or pyxel.btn(pyxel.KEY_A):
+            angle = rotSpeed
+            oldDirX = self.dirX
+            self.dirX = self.dirX * math.cos(angle) - self.dirY * math.sin(angle)
+            self.dirY = oldDirX * math.sin(angle) + self.dirY * math.cos(angle)
 
-        if pyxel.btn(pyxel.KEY_RIGHT):
-            # Move perpendicular to direction (use plane vector for strafe)
-            if worldMap[int(self.posX + self.planeX * moveSpeed)][int(self.posY)] == 0:
-                self.posX += self.planeX * moveSpeed
-            if worldMap[int(self.posX)][int(self.posY + self.planeY * moveSpeed)] == 0:
-                self.posY += self.planeY * moveSpeed
+            oldPlaneX = self.planeX
+            self.planeX = self.planeX * math.cos(angle) - self.planeY * math.sin(angle)
+            self.planeY = oldPlaneX * math.sin(angle) + self.planeY * math.cos(angle)
 
-        # mouse rotation (unlimited)
-        mouse_x = pyxel.mouse_x
-        edge_threshold = 20  # pixels from edge to trigger reset
-        
-        # Calculate mouse delta
-        mouse_dx = mouse_x - self.last_mouse_x
-        
-        # When mouse reaches edge, reset tracking position to center to allow continuous rotation
-        # This prevents rotation from stopping when mouse hits screen boundaries
-        if mouse_x <= edge_threshold:
-            # At or near left edge - reset to right side to allow continued left rotation
-            self.last_mouse_x = SCREEN_WIDTH - edge_threshold
-        elif mouse_x >= SCREEN_WIDTH - edge_threshold:
-            # At or near right edge - reset to left side to allow continued right rotation
-            self.last_mouse_x = edge_threshold
-        else:
-            # Normal case - update tracking position
-            self.last_mouse_x = mouse_x
-        
-        # Recalculate delta after potential reset
-        mouse_dx = mouse_x - self.last_mouse_x
-        angle = -mouse_dx * sensitivity
-
-        if angle != 0:
+        # rotate right (RIGHT arrow or D key)
+        if pyxel.btn(pyxel.KEY_RIGHT) or pyxel.btn(pyxel.KEY_D):
+            angle = -rotSpeed
             oldDirX = self.dirX
             self.dirX = self.dirX * math.cos(angle) - self.dirY * math.sin(angle)
             self.dirY = oldDirX * math.sin(angle) + self.dirY * math.cos(angle)
@@ -227,11 +195,19 @@ class App:
             drawStart = max(0, -lineHeight // 2 + SCREEN_HEIGHT // 2)
             drawEnd = min(SCREEN_HEIGHT - 1, lineHeight // 2 + SCREEN_HEIGHT // 2)
 
+            # Draw sky (dark grey) above the wall
+            if drawStart > 0:
+                pyxel.line(x, 0, x, drawStart - 1, 5)  # Color 5 is dark grey
+            
+            # Draw wall
             color = worldMap[mapX][mapY] % 16
             if side == 1:
                 color = (color + 8) % 16
-
             pyxel.line(x, drawStart, x, drawEnd, color)
+            
+            # Draw floor (grey) below the wall
+            if drawEnd < SCREEN_HEIGHT - 1:
+                pyxel.line(x, drawEnd + 1, x, SCREEN_HEIGHT - 1, 6)  # Color 6 is light grey
 
         # draw nextbot once per frame
         dx = self.botX - self.posX
